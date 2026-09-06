@@ -1,0 +1,29 @@
+# Runtime dependencies live in requirements.txt so that a reader can install the
+# experiment with one plain pip command. This file holds the development tools
+# and the configuration for the checks that CI runs.
+
+[dependency-groups]
+dev = [
+    "ruff==0.16.6",
+    "mypy==2.3.1",
+    "pandas-stubs==3.0.5.260730",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["."]
+exclude = ["\\.venv"]
+
+# highway-env ships no type information. Its only use here is registering the
+# environment ids and reading the config dictionary.
+[[tool.mypy.overrides]]
+module = ["highway_env.*"]
+ignore_missing_imports = true
