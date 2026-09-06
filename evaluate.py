@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import csv
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, TypedDict
 
 import numpy as np
 from stable_baselines3 import DQN, PPO
@@ -23,6 +23,19 @@ EVAL_SEED_BASE = 10_000
 
 # The random policy has no training density; the column has to say so.
 NO_TRAIN_DENSITY = "none"
+
+# highway-env's DiscreteMetaAction, in the order the action space uses.
+ACTION_NAMES = ("LANE_LEFT", "IDLE", "FASTER", "SLOWER", "LANE_RIGHT")
+
+
+class Metrics(TypedDict):
+    """One evaluation point: the three headline metrics plus the collapse check."""
+
+    mean_reward: float
+    crash_rate: float
+    mean_speed: float
+    dominant_action: str
+    dominant_action_frac: float
 
 
 class Policy(Protocol):
@@ -76,12 +89,19 @@ def load_policy(algo: str, seed: int, n_actions: int) -> Policy:
     return SB3Policy(loader.load(path))
 
 
-def run_episodes(policy: Policy, density: str, episodes: int) -> dict[str, float]:
-    """Roll out `episodes` episodes at one density and return the three metrics."""
+def run_episodes(policy: Policy, density: str, episodes: int) -> Metrics:
+    """Roll out `episodes` episodes at one density and return the metrics.
+
+    Alongside the three headline metrics this records how often the policy took
+    its single most common action. An agent that has collapsed onto one action
+    can score well without having learned to respond to traffic at all, and
+    reward alone does not distinguish that case from a competent policy.
+    """
     env = experiment.make_env(density)
     rewards: list[float] = []
     crashes: list[bool] = []
     speeds: list[float] = []
+    action_counts = np.zeros(experiment.n_actions(), dtype=np.int64)
 
     for i in range(episodes):
         obs, _ = env.reset(seed=EVAL_SEED_BASE + i)
@@ -89,7 +109,9 @@ def run_episodes(policy: Policy, density: str, episodes: int) -> dict[str, float
         episode_speeds: list[float] = []
         crashed = False
         while True:
-            obs, reward, terminated, truncated, info = env.step(policy.act(obs))
+            action = policy.act(obs)
+            action_counts[action] += 1
+            obs, reward, terminated, truncated, info = env.step(action)
             total += float(reward)
             episode_speeds.append(float(info["speed"]))
             crashed = bool(info["crashed"])
@@ -100,11 +122,14 @@ def run_episodes(policy: Policy, density: str, episodes: int) -> dict[str, float
         speeds.append(float(np.mean(episode_speeds)))
 
     env.close()
-    return {
-        "mean_reward": float(np.mean(rewards)),
-        "crash_rate": float(np.mean(crashes)),
-        "mean_speed": float(np.mean(speeds)),
-    }
+    dominant = int(np.argmax(action_counts))
+    return Metrics(
+        mean_reward=float(np.mean(rewards)),
+        crash_rate=float(np.mean(crashes)),
+        mean_speed=float(np.mean(speeds)),
+        dominant_action=ACTION_NAMES[dominant],
+        dominant_action_frac=float(action_counts[dominant] / action_counts.sum()),
+    )
 
 
 def append_rows(rows: list[dict[str, object]], csv_path: Path) -> None:
@@ -138,7 +163,9 @@ def evaluate(algo: str, seed: int, episodes: int, csv_path: Path) -> None:
             f"{algo} seed{seed} @ {density}: "
             f"reward {metrics['mean_reward']:.2f}, "
             f"crash {metrics['crash_rate']:.2f}, "
-            f"speed {metrics['mean_speed']:.2f}"
+            f"speed {metrics['mean_speed']:.2f}, "
+            f"{metrics['dominant_action']} "
+            f"{metrics['dominant_action_frac']:.0%} of steps"
         )
     append_rows(rows, csv_path)
 

@@ -52,6 +52,11 @@ CSV_COLUMNS: Final = (
     "mean_reward",
     "crash_rate",
     "mean_speed",
+    # How often the policy took its single most common action. A policy that
+    # has collapsed onto one action can still score well, and the three
+    # metrics above do not distinguish that case from a competent policy.
+    "dominant_action",
+    "dominant_action_frac",
 )
 
 

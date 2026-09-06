@@ -56,6 +56,8 @@ def aggregate(frame: pd.DataFrame) -> pd.DataFrame:
         crash_rate_std=("crash_rate", "std"),
         mean_speed_mean=("mean_speed", "mean"),
         mean_speed_std=("mean_speed", "std"),
+        dominant_action=("dominant_action", "first"),
+        dominant_action_frac_mean=("dominant_action_frac", "mean"),
     )
     flat: pd.DataFrame = summary.reset_index()
     return flat
@@ -89,6 +91,11 @@ def plot_metric(
             label=label,
         )
 
+    # Headroom so the "trained here" label and the legend do not collide with
+    # the data or get clipped at the top of the axes.
+    low, high = axes.get_ylim()
+    axes.set_ylim(low, high + 0.18 * (high - low))
+
     train_index = DENSITY_ORDER.index(experiment.TRAIN_DENSITY)
     axes.axvline(train_index, color="black", linestyle=":", linewidth=1.0, zorder=0)
     axes.annotate(
@@ -117,8 +124,8 @@ def write_summary_table(summary: pd.DataFrame, out_path: Path) -> None:
     """Write the mean plus or minus standard deviation table as markdown."""
     header = (
         "| Agent | Eval density | Mean reward | Crash rate "
-        "| Mean speed (m/s) | Seeds |",
-        "| --- | --- | --- | --- | --- | --- |",
+        "| Mean speed (m/s) | Most common action | Seeds |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
     )
     lines = list(header)
     for algo in PLOT_ORDER:
@@ -133,6 +140,8 @@ def write_summary_table(summary: pd.DataFrame, out_path: Path) -> None:
                 f"| {row['mean_reward_mean']:.2f} +/- {row['mean_reward_std']:.2f} "
                 f"| {row['crash_rate_mean']:.2f} +/- {row['crash_rate_std']:.2f} "
                 f"| {row['mean_speed_mean']:.2f} +/- {row['mean_speed_std']:.2f} "
+                f"| {row['dominant_action']} "
+                f"({row['dominant_action_frac_mean']:.0%} of steps) "
                 f"| {int(row['mean_reward_count'])} |"
             )
     out_path.write_text("\n".join(lines) + "\n")
