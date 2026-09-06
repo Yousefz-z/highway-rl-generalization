@@ -1,0 +1,30 @@
+name: Methodology concern
+description: A confound, a missing control, or a claim the evidence does not support
+labels: ["methodology"]
+body:
+  - type: textarea
+    id: concern
+    attributes:
+      label: The concern
+      description: >
+        Which part of the setup, and what it might be doing to the result.
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected
+    attributes:
+      label: What it would change
+      description: >
+        Which figure, table row, or sentence in the report would have to change
+        if you are right.
+    validations:
+      required: true
+
+  - type: textarea
+    id: check
+    attributes:
+      label: How it could be checked
+      description: >
+        A run, a control condition, or a calculation that would settle it.
+        Rough is fine.
